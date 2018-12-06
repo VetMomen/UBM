@@ -65,4 +65,4 @@ only_act%>%ggplot(aes(x = Customer,y=Products,color=Q,size=`Net Sales`))+
 only_act%>%ggplot(aes(x = Date,y = `Net Sales`))+
         geom_smooth()+
         facet_wrap(.~Products)
-
+#################################################################
