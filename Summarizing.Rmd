@@ -1,0 +1,73 @@
+---
+title: "Data summary"
+author: "Mo'men Mohamed"
+date: "January 6, 2019"
+output: html_document
+---
+
+libraries
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(magrittr)
+library(XLConnect)
+
+```
+
+reading the data 
+
+```{r}
+data2018<-read_excel("./data sets/2018 ACHEIVE.xlsx",2)
+```
+
+ lets look to each customer alone 
+
+```{r}
+customers<-split(data2018,data2018$Customer)
+```
+
+
+First variable in our data is total transaction 
+
+```{r}
+total_trans<-data2018%>%group_by(Customer)%>%summarize(Total_transaction=sum(`Net Sales`))
+
+```
+
+Now getting the average of each product price 
+
+```{r}
+#product X Customer 
+prodsummary<-data2018%>%group_by(Customer,Products)%>%summarize(Total_qty=sum(Qty),
+                                                   Total_trans=sum(`Net Sales`))%>%mutate(meanprice=Total_trans/Total_qty)
+
+
+#separation by Customer 
+
+cust_prod_splitted<-split(prodsummary,prodsummary$Customer)
+```
+
+
+Product unit X Value
+
+```{r}
+Product_summary<-data2018%>%group_by(Products)%>%summarize(sum_qty=sum(Qty),
+                                          sum_Net=sum(`Net Sales`))
+
+```
+
+
+Customer Vs Product unit
+
+```{r}
+CustVSProd<-xtabs(Qty~Customer+Products,data2018)%>%data.frame()%>%
+        spread(key = Products,value = Freq)
+
+#Exporting it to excel
+
+writeWorksheetToFile(file = "./data sets/cross.xlsx",data = CustVSProd,sheet = "cross")
+```
+
+

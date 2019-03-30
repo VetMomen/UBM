@@ -1,0 +1,9 @@
+base
+readxl
+magrittr
+dplyr
+tidyr
+ggplot2
+psych
+sjstats
+bindrcpp

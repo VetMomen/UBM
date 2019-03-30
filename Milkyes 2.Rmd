@@ -1,0 +1,74 @@
+---
+title: "Milkyes2"
+author: "Mo'men Mohamed"
+date: "February 4, 2019"
+output: html_document
+---
+
+```{r libraries}
+
+```
+
+reading the data 
+
+```{r reading data }
+Sys.setlocale(category = "LC_ALL",locale = "Arabic")
+milk<-read_excel(path = "./data sets/axcelera-milkyes.xlsx")
+str(milk)
+```
+
+handling the data
+
+```{r handling }
+#renaming the columns 
+
+colnames(milk)<-paste(milk[1,],milk[2,],sep = " ")
+
+#removing unused rows in all data
+other_data<-milk[52:65,]
+
+milk<-milk[-c(1,2,23:28,49:65),-1]
+milk$group<-c(rep(1,20),rep(0,20))
+```
+
+Extracting analysis data 
+
+```{r analysis data }
+milk_analysis<-milk[,c("Cow NA","Breed NA","group","Birth date","Calving Weight E NA","Weight 2 Date","Weight 2 43449","Weight 3 Date","Weight 3 43464","Weight 4 Date","Weight 4 43480")]
+
+```
+
+convering the data to longitudinal form
+
+```{r long data}
+milk_analysis2<-data.frame(Cow_Code=rep(milk_analysis$`Cow NA`,4),
+                           Breed=rep(milk_analysis$`Breed NA`,4),
+                           group=rep(milk_analysis$group,4),
+                           Date = c(milk_analysis$`Birth date`,milk_analysis$`Weight 2 Date`,milk_analysis$`Weight 3 Date`,milk_analysis$`Weight 4 Date`),
+                           weight=c(milk_analysis$`Calving Weight E NA`,milk_analysis$`Weight 2 43449`,milk_analysis$`Weight 3 43464`,milk_analysis$`Weight 4 43480`)
+                           )
+
+
+```
+
+restructuring the data
+
+```{r restructure}
+str(milk_analysis2)
+
+milk_analysis2<-milk_analysis2%>%
+        mutate(Cow_Code=as.character(Cow_Code),Breed=as.factor(Breed),group=as.factor(group),Date=as.numeric(as.character(Date)),weight = as.numeric(as.character(weight)))%>%
+        mutate(Date=as.Date(Date,origin="1-1-1970",Formats = "%y-%m-%d"))
+
+View(milk_analysis2)
+
+```
+plotting smooth line
+
+```{r smooth plotting }
+milk_analysis2%>%ggplot(aes(x=Date,y=weight))+
+        geom_point()+
+        geom_smooth()+
+        facet_wrap(.~ group)
+
+```

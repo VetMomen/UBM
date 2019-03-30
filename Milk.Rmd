@@ -1,0 +1,512 @@
+---
+title: "Milkyes Trial Data Analysis"
+author: "Mo'men Mohamed"
+date: "December 22, 2018"
+output:
+  word_document: default
+  html_document:
+---
+
+## What are we doing?
+
+We are working on data collected from **Milkys** Farm as results of an experiment conducted on 40 Newly borne calves to measure the potentiality of **AXCELERA-C** to improve :
+
+- Body weight gain
+- weaning period reduction 
+- Health statues
+
+## Why do we do this ?
+
+This analysis is important for many reasons :
+
+- Determining if there is any significant improvement due to using AXCELERA-C
+
+- Giving insights about the best application of the Product
+
+- directing the attention toward the precautions and issues which must be taken in consideration 
+
+## What is our stratigy and steps of Analysis ?
+
+our work will be divided into 3 parts:
+
+1- Data cleaning and processing --> to make the data ready for valid analysis 
+
+2- Data Analysis --> which divided into :
+
+
+   - Descriptive analysis --> data description and exploration 
+   
+
+   - Statistical testing --> for insuring the significant effect 
+
+
+
+### Data cleaning and processing 
+
+First of all we have to load all libraries which are necessary for our analysis 
+
+```{r libraries,message=FALSE,warning=FALSE}
+library(readxl)
+library(magrittr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(psych)
+library(sjstats)
+```
+
+Then we will import the data and storing it in an object called **"Milkyes"**
+
+```{r data import}
+Milkyes<-read_excel(path = "./data sets/Milkyes.xlsx")
+head(Milkyes)
+```
+
+Now we are going to look at the structure of the data for any modification  
+
+```{r data structure,cache=TRUE}
+str(Milkyes)
+```
+
+This is very important to do some modification like :
+
+- code : has to be *chr*
+
+- type : has to be *factor*
+
+- breed : has to be *factor*
+
+- birth date : has to be *date*
+
+- weight date : has to be *date*
+
+```{r variables Mod,cache=TRUE}
+Milkyes<-Milkyes%>%mutate(
+        code=as.character(code),
+        group=as.factor(type),
+        breed=as.factor(breed),
+        `birth date`=as.Date(`birth date`),
+        `weight date`=as.Date(`weight date`)
+)
+
+str(Milkyes)
+```
+
+I think that it will be useful to add a variable which is a factor of disease occurrence {0,1} in which {0} means no disease history and {1} means occurrence of disease 
+
+```{r disease occurance variable,cache=TRUE}
+
+Milkyes<-Milkyes%>%mutate('D_Occure'=sapply(`disease history`,FUN = function(x){
+        if(is.na(x)){0}
+        else{1}}))%>%mutate(D_Occure=factor(D_Occure,levels = c(0,1)))
+head(Milkyes)
+```
+
+
+Now the Data is ready for analysis ...
+
+### Data Analysis 
+
+First of all lets illustrate and describe each variable :
+
+#### Variables Describtion
+
+- *code* -- > the code number of each calf 
+
+- *group* --> weather the animal in control group or AXCELERA-C group 
+
+- *breed* --> the breed of the calf 
+
+- *birth date* --> the birth date of each animal 
+
+- *calving weight* --> the weight of each calf at birth 
+
+- *weight date* --> the date of second weight recording
+
+- *weight 2* --> the second weight record after a period range from `r min(Milkyes$age)` to `r max(Milkyes$age)` day
+
+- *age* --> age at *wieght 2*
+
+- *disease history* --> type of disease affected the calves 
+
+- *D_Occure* --> code illustrate disease occurrence or absence 
+
+#### Exploring the Data 
+
+Now we will look at the data , exploring and graphing it 
+
+##### **Breed**
+
+Lets first see the frequency and percentage of each breed representation
+
+```{r breed representation,cache=TRUE}
+freq<-table(Milkyes$breed)%>%data.frame%>%mutate(perc=(Freq/sum(Freq)))
+freq%>%ggplot(aes(x=Var1,y=perc))+
+        geom_col(aes(color=Var1),fill="white",width = .5,show.legend = FALSE)+
+        geom_label(data=freq,aes(label=perc))+xlab(' ')+ylab("Calves Number")+
+        ggtitle(label = "Frequancy of each breed in the data")
+```
+
+We can see that the representation of Holstein is the most frequent **60%** 
+then brown Swiss comes in the second level **30%** and the least rep. is Simmental **5%**
+
+To Judge on these distribution as an issue we have to conduct `chi_square goodness of fit` test as following :
+
+```{r goodness of fit,cache=TRUE,cache.rebuild=TRUE}
+goodness<-chisq.test(table(Milkyes$breed),p=rep(1/3,3),rescale.p = FALSE)
+goodness
+```
+
+As *P-value* of chi square test is `r goodness$p.value` and it is **< 0.05** , then we reject the the NULL hypothesis
+
+`H0 : the breed of calves is equally distributed`
+
+
+and it is an issue in our sample 
+
+Another issue may face us if the distribution of breeds not independent from the two groups 
+
+but firstly lets visualize its distribution through groups :
+
+```{r group - breed,cache=TRUE}
+grouped_perc<-Milkyes%>%group_by(group,breed)%>%summarize(Num=n())%>%mutate("%"=Num/sum(Num))
+
+Milkyes%>%ggplot(aes(x=breed))+
+        geom_bar(aes(color=breed),fill="white",width = .5,show.legend = FALSE)+scale_y_continuous(breaks = 2*c(1:7))+
+        facet_wrap(.~group)+xlab("")+ylab("Number of Calves")+
+        geom_label(data=grouped_perc,aes(y=Num,label=`%`))
+```
+
+As we see here in the graph, there are a lack in the uniformity of the distribution of the breed at the two groups , and for more precision we can do a `chi square for independence` to insure that the distribution is independent from the group type and statistical uniform as following : 
+
+
+```{r table of rep,message=FALSE,warning=FALSE,cache=TRUE}
+chi_sq<-table(Milkyes$breed,Milkyes$group)%>%chisq.test()
+chi_sq
+```
+
+Good News !! 
+
+we accept the Null hypothesis : `H0: the breed distribution is independent from the group type` as the *P-Value* `r chi_sq$p.value` is **> 0.05**
+
+**OK ...**
+
+##### **Calving Weight**
+
+
+Now lets talk about the calving weight and its relationship with other factors like :
+
+- breed 
+
+- incidence of disease occurrence 
+
+- Body weight at the second weight record
+
+SO,
+
+First of all lets test Normality and presence of outlier 
+
+```{r boxplot,cache=TRUE}
+
+Min<-Milkyes%>%filter(`calving weight` == min(`calving weight`))
+
+Milkyes%>%ggplot(aes("",`calving weight`))+
+        geom_boxplot(outlier.colour = "red")+
+        geom_text(data = Min,aes(label=`calving weight`),nudge_x = .04)+
+        xlab("")+
+        ggtitle(label = "Illustrating the Outlier of calving weight and its distribution")
+
+```
+
+The Calving weight of *25 KG * is an lower outlier which may affect on the results but we will keep it, as it may be useful in future analysis and create another object without outlier for statistical testing and replace the outlier with *NA*
+
+```{r Na repl,cache=TRUE}
+Milkyes_na<-Milkyes%>%mutate(`calving weight`=sapply(`calving weight`,function(x){
+        if(x == min(Milkyes$`calving weight`)){NA}
+        else{x}
+}))
+```
+
+Now lets take a look on Normality: 
+
+```{r Histogram ,warning=FALSE,cache=TRUE}
+
+Milkyes%>%ggplot(aes(`calving weight`))+
+        geom_density(fill="lightgreen",color="white",bins = 7)+
+        ylab("")
+```
+
+We here see that the Data roughly Normal with small left skew.
+Now we can see the summary of this variable :
+
+```{r summery,cache=TRUE}
+summary(Milkyes$`calving weight`)
+
+```
+
+this summary illustrate the maximum and minimum weight and also the average 
+
+ 
+Now we will test the relationship with calving weight and other variables like:
+
+###### *breed*
+
+firstly we can compare between breeds in calving weight:
+
+```{r breed boxplot,cache=TRUE}
+Milkyes%>%ggplot(aes(x=breed,y=`calving weight`))+
+        geom_boxplot(aes(color=breed),show.legend = FALSE,outlier.color = "red")+
+        geom_hline(aes(yintercept=mean(Milkyes$`calving weight`)),lty=3,lwd=.9)
+```
+
+From this box plot we can see that both *simmental* and *brown swiss* are above the average of calving weight unlike Holstein which is under the average 
+
+and this tell us that the calving weight might be affected by type of breed ...
+
+And to prove it statistically we can do `one way ANOVA` as below :
+
+```{r one way ANOVA,cache=TRUE}
+AOV<-aov(data = Milkyes,`calving weight`~breed)
+summary(AOV)
+```
+
+Wow, the result here is so confusing as the P-Value is slightly more than **0.05**
+
+So, we need here calculating `Eta effect size`
+
+```{r Eta,cache=TRUE}
+eta<-eta_sq(AOV)
+(eta)
+```
+
+From Effect size `Eta squared` we can see that 14.2% of variation in calving weight is due to breed and it isn't a percentage which we can neglect
+
+
+Also to see the complete picture of this variation we need to insert another factor which is the group :
+
+```{r group insertion,cache=TRUE}
+Milkyes%>%ggplot(aes(x=breed,y=`calving weight`))+
+        geom_boxplot(aes(color=breed),show.legend = FALSE,outlier.color = "red")+
+        geom_hline(aes(yintercept=mean(Milkyes$`calving weight`)),lty=3,lwd=.9)+
+        facet_wrap(.~group)
+```
+
+Great, in this plot we can see that the variation in AXCELERA-C group is larger than control one 
+
+###### *Incedence of Disease Occurance*
+
+we can see this as following :
+
+```{r bar,cache=TRUE}
+
+Milkyes%>%ggplot(aes(x=D_Occure,y=`calving weight`))+
+        geom_boxplot(outlier.color = "red")+
+        geom_hline(aes(yintercept=mean(Milkyes$`calving weight`)),lty=3,lwd=.9,color="blue")
+```
+
+Actually to prove that the calving body weight has a significant effect on health statues you need to do t-test :
+
+```{r disease t test,cache=TRUE}
+
+t.test(`calving weight`~ D_Occure,data = Milkyes_na)
+
+```
+
+Good !! here we can exclude the calving weight as a factor affecting the incidence of disease in the future !!
+
+
+###### *First weight*
+
+Now we want to know the relationship between the calving weight and the second weight record 
+
+Lets plot and visualize it 
+
+```{r scatter,cache=TRUE}
+Milkyes%>%ggplot(aes(x=`calving weight`,y=`weight 2`))+geom_point()+geom_smooth(method = 'lm')
+```
+
+You can see that there are a relationship between the calving weight and the second weight record 
+
+and we can statistically see that by calculating the correlation 
+
+```{r correlation,cache=TRUE}
+
+with(Milkyes,cor.test(`weight 2`,`calving weight`))
+
+```
+
+Great !! we have high correlation between these to variables !!
+
+But do you think that this correlation might affected by the disease occurrence during this period !! 
+
+```{r lm over disease,cache=TRUE}
+Milkyes%>%ggplot(aes(x=`calving weight`,y=`weight 2`,color=D_Occure))+geom_point()+geom_smooth(method = "lm")
+```
+
+The intersection between "*lm*" lines here may be due to other factor like using *AXCELERA-C* so , lets see the effect of using it
+
+```{r lm over D and G,cache=TRUE}
+Milkyes%>%ggplot(aes(x=`calving weight`,y=`weight 2`,color=D_Occure))+geom_point()+geom_smooth(method = "lm")+
+        facet_grid(.~group)
+```
+
+Great News !!!
+
+this intersection is in the AXCELERA-C group and we can say that AXCELERA-C has an effect on infected animal to regain its body weight gain normally 
+
+but we can't definitely conclude that Now 
+
+we will back to this point during discussing the difference between the two groups 
+
+##### **Groups differences**
+
+**Now** we can talk about the core of our analysis *GROUPS* and its relation to the different variables 
+
+And we will discuss the difference between the two groups at:
+
+- difference in calving body weight
+
+- Incidence of disease occurrence 
+
+- difference in the second body weight record
+
+- difference in average body weight
+
+
+###### *difference in calving body weight*
+
+I will test the difference in congruent with breed in each group :
+
+```{r two way anova,cache=TRUE}
+ANOVA<-aov(`calving weight`~group*breed,data = Milkyes)
+
+summary(ANOVA)
+```
+We here see the result of **Two way ANOVA** as there is no significant difference in calving weight between the two groups and also absence of moderating role of *breed* here 
+
+So, we can say that the two group are *matched* ...
+
+
+###### *Incedence of disease occurence*
+
+After matching the two groups , Now lets compare between the two group in incidence of disease occurrence by *chi-squared* test after visualizing it :
+
+```{r Mosaic,cache=TRUE}
+table<-table(Milkyes$group,Milkyes$D_Occure)
+plot(table,main="Mosaic plot illustrating the frequancy Of Disease in each group")
+```
+
+In this plot we see an obvious difference in cases of disease occurrence between the two group as the control group has more cases of disease 
+
+and now, it's time of statistical testing 
+
+```{r chi_sq,cache=TRUE}
+chisq.test(x = Milkyes$group,Milkyes$D_Occure)
+```
+
+**Unfortunately** the difference between the two groups in incidence of disease occurrence is Not significant and P-value is > **0.05**
+
+
+OK ... 
+
+
+###### *difference in the second body weight record*
+
+Lets test the difference in the second body weight record 
+
+```{r mean visualize,cache=TRUE}
+Milkyes%>%group_by(group)%>%summarize(mean=mean(`weight 2`))%>%ggplot(aes(x=group,y=mean,color=group))+
+        geom_col(width = .4,fill="lightblue",lwd=.8)
+```
+
+Now lets use *t-test*
+
+```{r t test,cache=TRUE}
+t.test(Milkyes$`weight 2`~Milkyes$group)
+```
+
+As we see here that the difference here is not significant also and the P-value is > **0.05**
+
+
+######*difference in average body weight*
+
+Lets make a variable called **DWG**
+
+```{r DWG,cache=TRUE}
+Milkyes<-Milkyes%>%mutate(DWG = round(((`weight 2`- `calving weight`)/as.numeric(`weight date`- `birth date`))*1000,0)
+)
+```
+
+
+Then we can visualize it and test the difference between means 
+
+```{r visu,cache=TRUE}
+Milkyes%>%group_by(group)%>%summarize(mean=mean(DWG))%>%ggplot(aes(x=group,y=mean,color=group))+geom_col(width = .4,fill="white")
+```
+
+And we also will use `t-test` to know if the difference between the two groups is significant:
+
+```{r DWG ttest,cache=TRUE}
+t.test(Milkyes$DWG~Milkyes$group)
+
+```
+
+
+And here also we can see that the difference in average body weight is not significant 
+
+but there is another confirm needed by adding another factor * incedence of disese occurence * to this analysis and doing `two way ANOVA`
+
+```{r Two way anova inc-dwg ,cache=TRUE}
+
+ANOVA2<-aov(DWG~D_Occure*group,data=Milkyes)
+
+summary(ANOVA2)
+
+
+```
+
+Also Here we can't see any significant interaction between *incedence of disease occurence* and *DWG*
+
+
+
+**Now** it is time of conclusion and recommendation 
+
+
+
+### Conclusion & Recommendations
+
+#### Conclusion
+
+As we saw in our analysis we have some conclusions To point here :
+
+- There are a lack in distribution uniformity in our sample regarding breed
+
+- the Distribution between group in each breed is statistically uniform and independent 
+
+- There are an observable difference in calving weight between each breed has to be taken in consideration 
+
+- AXCELERA-C group is less in number of cases which infected by disease but this difference isn't significant 
+
+- the effect of calving body weight on Incidence of disease occurrence is not statistically significant 
+
+- There are a strong significant positive correlation between calving weight and second body weight record
+
+- In Accelerate-C group there are an intersection between recovered calves after disease and disease free animal but this intersection is not significant 
+
+- the two groups are matched in calving body weight and number of breed "*statistically*"
+
+- The difference in number of diseased animal is not significant 
+
+- The difference in the second body weight is not significant 
+
+- The Difference in the Average body weight is not significant between groups 
+
+####Recomendation
+
+- It is highly recommended to select a sample with a uniform distribution of breed type 
+
+- To do more Experiments on the potentiality of AXCELERA-C to buffer the bad effect of Disease decline growth rate 
+
+
+
+##REGARDS .....

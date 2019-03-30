@@ -1,0 +1,91 @@
+---
+title: "Location Clusering and Mapping"
+author: "Mo'men Mohamed"
+date: "January 30, 2019"
+output: html_document
+---
+
+libraries 
+
+```{r librarries}
+library(rvest)
+library(leaflet)
+library(magrittr)
+library(XLConnect)
+library(readxl)
+library(stringr)
+library(dplyr)
+library(tidyr)
+library(factoextra)
+library(NbClust)
+library(cluster)
+library(dbscan)
+```
+
+setting the environment to arabic
+```{r to Arabic}
+Sys.setlocale(category = "LC_ALL",locale = "Arabic")
+```
+
+importing gpx file
+
+```{r importing gpx}
+gpx<-read_html("./data sets/locations.gpx")
+
+name<-gpx%>%html_nodes(xpath = "//name")%>%html_text(trim = TRUE)
+name<-name[-1]
+
+lat<- gpx%>%html_nodes(xpath = "//wpt")%>%html_attr("lat")
+
+long<-gpx%>%html_nodes(xpath = "//wpt")%>%html_attr("lon")
+
+locations<-data.frame(farm=name,lon=long,lat=lat)
+```
+
+exploring the structure and modification
+
+```{r str}
+str(locations)
+
+writeWorksheetToFile(file = "./data sets/locations.xlsx",data = locations,sheet = "locations")
+
+locations<-read_excel(path = "./data sets/locations.xlsx",sheet = "locations",col_types = c("guess","numeric","numeric"))
+
+str(locations)
+
+```
+
+Now lets cluster it 
+
+clustering tendency
+
+```{r tendency}
+get_clust_tendency(data = scale(locations[,2:3]),50)
+
+```
+
+lets cluster it as DBSCAN
+
+Knowing the minimum epsilon
+```{r DBSCAN}
+kNNdistplot(x = locations[,2:3],k = 3)
+abline(h = .10)
+```
+
+clustering 
+
+```{r clustering }
+
+db<-dbscan(locations[,2:3],eps = .10,minPts = 3)
+
+locations$dbclusters<-as.factor(db$cluster)
+table(locations$dbclusters)
+```
+
+Mapping
+
+```{r mapping}
+factpal<-colorFactor(topo.colors(27),locations$dbclusters)
+
+locations%>%leaflet()%>%addTiles()%>%addCircleMarkers(~lon,~lat,radius = .7,label = ~farm,color = ~ factpal(dbclusters))
+```
